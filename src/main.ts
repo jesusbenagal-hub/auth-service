@@ -14,6 +14,10 @@ const app = await NestFactory.create<NestFastifyApplication>(
 );
 const config = app.get<ConfigService<Env, true>>(ConfigService);
 
+// On SIGTERM (Cloud Run stopping an instance, Ctrl+C) Nest runs the
+// onModuleDestroy hooks, so PrismaService closes its connections.
+app.enableShutdownHooks();
+
 // Fastify listens only on 127.0.0.1 by default; in a container (Cloud Run)
 // requests come from outside, so it listens on every interface.
 await app.listen({
