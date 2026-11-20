@@ -10,7 +10,7 @@ import tseslint from "typescript-eslint";
  * classes with decorators, `*.spec.ts` tests and no tsconfig outside the repo.
  */
 export default defineConfig(
-  globalIgnores(["dist/", "coverage/"]),
+  globalIgnores(["dist/", "coverage/", "src/generated/"]),
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,
@@ -114,6 +114,11 @@ export default defineConfig(
           types: ["boolean"],
           format: ["PascalCase"],
           prefix: ["is", "has", "can", "should"],
+        },
+        // Environment variable names (`DATABASE_URL`) come from outside.
+        {
+          selector: ["objectLiteralProperty", "typeProperty"],
+          format: ["camelCase", "UPPER_CASE"],
         },
         {
           selector: [

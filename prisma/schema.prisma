@@ -1,0 +1,78 @@
+// auth-service data (Neon project and database `core`). Tables and columns in
+// snake_case (@@map / @map), the Postgres convention; models in PascalCase.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  // Google's stable id for the person; null until their first login.
+  googleSub String?  @unique @map("google_sub")
+  email     String   @unique
+  name      String?
+  avatarUrl String?  @map("avatar_url")
+  hubAdmin  Boolean  @default(false) @map("hub_admin")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  appRoles      UserAppRole[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+/// One row per app of the hub; the id is its appId (`lista-compra`).
+model App {
+  id        String   @id
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  userRoles UserAppRole[]
+
+  @@map("apps")
+}
+
+enum AppRole {
+  admin
+  editor
+  reader
+
+  @@map("app_role")
+}
+
+model UserAppRole {
+  userId String  @map("user_id") @db.Uuid
+  appId  String  @map("app_id")
+  role   AppRole
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  app  App  @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  @@id([userId, appId])
+  @@map("user_app_roles")
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid(7)) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  // SHA-256 of the token: the token itself is only ever in the cookie.
+  tokenHash    String    @unique @map("token_hash")
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz
+  replacedById String?   @unique @map("replaced_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy RefreshToken? @relation("Rotation", fields: [replacedById], references: [id])
+  replaces   RefreshToken? @relation("Rotation")
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
