@@ -55,7 +55,8 @@ model UserAppRole {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   app  App  @relation(fields: [appId], references: [id], onDelete: Cascade)
 
-  @@id([userId, appId])
+  // `name`: the key in Prisma Client (`where: { userIdAppId }`); not in SQL.
+  @@id([userId, appId], name: "userIdAppId")
   @@map("user_app_roles")
 }
 

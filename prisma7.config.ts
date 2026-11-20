@@ -10,7 +10,7 @@ if (existsSync(".env")) {
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  migrations: { path: "prisma/migrations" },
+  migrations: { path: "prisma/migrations", seed: "tsx prisma/seed.ts" },
   // Migrations use the direct connection: PgBouncer (-pooler) doesn't keep
   // the session the schema engine relies on. Not `env()`: it throws when the
   // variable is missing, and `prisma generate` needs no database at all.
