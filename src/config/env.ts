@@ -11,6 +11,8 @@ export const envSchema = z.object({
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
   // Neon, direct: the Prisma CLI (migrations).
   DATABASE_URL_UNPOOLED: z.url({ protocol: /^postgres(ql)?$/ }),
+  // Our OAuth client (public): the `aud` every Google id_token must carry.
+  GOOGLE_CLIENT_ID: z.string().endsWith(".apps.googleusercontent.com"),
 });
 
 export type Env = z.infer<typeof envSchema>;

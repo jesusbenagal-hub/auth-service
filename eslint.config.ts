@@ -115,10 +115,11 @@ export default defineConfig(
           format: ["PascalCase"],
           prefix: ["is", "has", "can", "should"],
         },
-        // Environment variable names (`DATABASE_URL`) come from outside.
+        // Names that come from outside: environment variables (`DATABASE_URL`)
+        // and JWT claims (`email_verified`, `hub_admin`).
         {
           selector: ["objectLiteralProperty", "typeProperty"],
-          format: ["camelCase", "UPPER_CASE"],
+          format: ["camelCase", "UPPER_CASE", "snake_case"],
         },
         {
           selector: [
