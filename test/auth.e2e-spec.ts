@@ -14,10 +14,12 @@ import {
   ACCESS_TOKEN_TTL_SECONDS,
   TOKEN_ISSUER,
 } from "../src/auth/access-token.service.js";
+import { ACCESS_TOKEN_COOKIE } from "../src/auth/auth-cookies.js";
 import {
   type GoogleIdentity,
   GoogleTokenVerifier,
 } from "../src/auth/google-token-verifier.js";
+import { configureApp } from "../src/configure-app.js";
 import { PrismaService } from "../src/prisma/prisma.service.js";
 
 async function createApp(
@@ -32,6 +34,7 @@ async function createApp(
   const app = moduleRef.createNestApplication<NestFastifyApplication>(
     new FastifyAdapter(),
   );
+  await configureApp(app);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
   return app;
@@ -195,11 +198,43 @@ describe("POST /auth/google (e2e)", () => {
       expect(user.googleSub).toBe(`sub-registered-${runId}`);
     });
 
-    it("answers with an access token signed with our key", async () => {
+    it("answers with the user", async () => {
       const response = await signIn("registered");
-      const { accessToken } = response.json<{ accessToken: string }>();
 
-      const { payload, protectedHeader } = await verifyAccessToken(accessToken);
+      expect(response.json()).toMatchObject({
+        email: registeredEmail,
+        name: "Registered Person",
+        isHubAdmin: false,
+        apps: { [appId]: "editor" },
+      });
+    });
+
+    it("sets the access token in an httpOnly cookie for /api", async () => {
+      const response = await signIn("registered");
+
+      const cookie = response.cookies.find(
+        ({ name }) => name === ACCESS_TOKEN_COOKIE,
+      );
+      expect(cookie).toMatchObject({
+        httpOnly: true,
+        secure: true,
+        sameSite: "Strict",
+        path: "/api",
+        maxAge: ACCESS_TOKEN_TTL_SECONDS,
+      });
+      // The token never travels in the body, where JavaScript could read it.
+      expect(response.body).not.toContain(cookie?.value);
+    });
+
+    it("signs the access token with our key", async () => {
+      const response = await signIn("registered");
+      const cookie = response.cookies.find(
+        ({ name }) => name === ACCESS_TOKEN_COOKIE,
+      );
+
+      const { payload, protectedHeader } = await verifyAccessToken(
+        cookie?.value ?? "",
+      );
 
       const user = await prisma.user.findUniqueOrThrow({
         where: { email: registeredEmail },
