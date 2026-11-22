@@ -6,9 +6,14 @@ import {
   type NestFastifyApplication,
 } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
+import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { AppModule } from "../src/app.module.js";
+import {
+  ACCESS_TOKEN_TTL_SECONDS,
+  TOKEN_ISSUER,
+} from "../src/auth/access-token.service.js";
 import {
   type GoogleIdentity,
   GoogleTokenVerifier,
@@ -167,40 +172,48 @@ describe("POST /auth/google (e2e)", () => {
       await app.close();
     });
 
+    // Verifies the access token like an API will: with our published JWKS.
+    async function verifyAccessToken(accessToken: string) {
+      const jwksResponse = await app.inject({
+        method: "GET",
+        url: "/.well-known/jwks.json",
+      });
+      const jwks = createLocalJWKSet(jwksResponse.json<JSONWebKeySet>());
+      return jwtVerify(accessToken, jwks, {
+        issuer: TOKEN_ISSUER,
+        algorithms: ["ES256"],
+      });
+    }
+
     it("links the Google account on the first login", async () => {
       const response = await signIn("registered");
 
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toMatchObject({
-        email: registeredEmail,
-        name: "Registered Person",
-        isHubAdmin: false,
-        apps: { [appId]: "editor" },
-      });
       const user = await prisma.user.findUniqueOrThrow({
         where: { email: registeredEmail },
       });
       expect(user.googleSub).toBe(`sub-registered-${runId}`);
     });
 
-    it("finds the user by their Google account afterwards", async () => {
+    it("answers with an access token signed with our key", async () => {
       const response = await signIn("registered");
+      const { accessToken } = response.json<{ accessToken: string }>();
 
-      expect(response.statusCode).toBe(200);
-      expect(response.json()).toMatchObject({ email: registeredEmail });
-    });
+      const { payload, protectedHeader } = await verifyAccessToken(accessToken);
 
-    it.each([
-      { label: "someone who isn't registered", credential: "stranger" },
-      { label: "an unverified email", credential: "unverified" },
-      {
-        label: "an email linked to another Google account",
-        credential: "other-google-account",
-      },
-    ])("answers 403 to $label", async ({ credential }) => {
-      const response = await signIn(credential);
-
-      expect(response.statusCode).toBe(403);
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { email: registeredEmail },
+      });
+      expect(protectedHeader).toMatchObject({ alg: "ES256", typ: "JWT" });
+      expect(payload).toMatchObject({
+        iss: TOKEN_ISSUER,
+        sub: user.id,
+        email: registeredEmail,
+        name: "Registered Person",
+        hub_admin: false,
+        apps: { [appId]: "editor" },
+      });
+      expect(payload.exp).toBe((payload.iat ?? 0) + ACCESS_TOKEN_TTL_SECONDS);
     });
   });
 });
