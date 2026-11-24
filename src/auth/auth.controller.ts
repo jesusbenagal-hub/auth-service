@@ -13,6 +13,7 @@ import { z } from "zod";
 
 import { AccessTokenService } from "./access-token.service.js";
 import {
+  clearAuthCookies,
   REFRESH_TOKEN_COOKIE,
   setAccessTokenCookie,
   setRefreshTokenCookie,
@@ -76,5 +77,22 @@ export class AuthController {
     setAccessTokenCookie(reply, await this.accessTokenService.issue(user));
     setRefreshTokenCookie(reply, refreshToken.token);
     return user;
+  }
+
+  /**
+   * Logs out: revokes the login's refresh tokens and deletes both cookies.
+   * Always 204, even without a cookie: the browser ends up logged out anyway.
+   */
+  @Post("logout")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<void> {
+    const token = request.cookies[REFRESH_TOKEN_COOKIE];
+    if (token) {
+      await this.refreshTokenService.revoke(token);
+    }
+    clearAuthCookies(reply);
   }
 }

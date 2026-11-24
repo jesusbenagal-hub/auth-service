@@ -97,6 +97,19 @@ export class RefreshTokenService {
     return { userId: current.userId, refreshToken: rotated };
   }
 
+  /**
+   * Ends the login the token belongs to: its whole family stops working.
+   * Unknown tokens are ignored, so logging out twice is harmless.
+   */
+  async revoke(token: string): Promise<void> {
+    const current = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: hashRefreshToken(token) },
+    });
+    if (current) {
+      await this.revokeFamily(current.familyId);
+    }
+  }
+
   private async create(
     database: Prisma.TransactionClient,
     { userId, familyId }: { userId: string; familyId: string },
