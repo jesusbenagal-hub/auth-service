@@ -10,9 +10,10 @@ import type { FastifyReply } from "fastify";
 import { z } from "zod";
 
 import { AccessTokenService } from "./access-token.service.js";
-import { setAccessTokenCookie } from "./auth-cookies.js";
+import { setAccessTokenCookie, setRefreshTokenCookie } from "./auth-cookies.js";
 import { AuthService, type SignedInUser } from "./auth.service.js";
 import { GoogleTokenVerifier } from "./google-token-verifier.js";
+import { RefreshTokenService } from "./refresh-token.service.js";
 
 // What Google Identity Services gives the browser: `credential` is the id_token.
 const googleLoginSchema = z.object({ credential: z.string().min(1) });
@@ -25,9 +26,10 @@ export class AuthController {
     private readonly googleTokenVerifier: GoogleTokenVerifier,
     private readonly authService: AuthService,
     private readonly accessTokenService: AccessTokenService,
+    private readonly refreshTokenService: RefreshTokenService,
   ) {}
 
-  /** Signs in with Google: the token goes in a cookie, the user in the body. */
+  /** Signs in with Google: the tokens go in cookies, the user in the body. */
   @Post("google")
   @HttpCode(HttpStatus.OK)
   async loginWithGoogle(
@@ -38,7 +40,11 @@ export class AuthController {
     const identity = await this.googleTokenVerifier.verify(body.credential);
     const user = await this.authService.signInWithGoogle(identity);
 
-    setAccessTokenCookie(reply, await this.accessTokenService.issue(user));
+    const accessToken = await this.accessTokenService.issue(user);
+    const refreshToken = await this.refreshTokenService.issue(user.id);
+
+    setAccessTokenCookie(reply, accessToken);
+    setRefreshTokenCookie(reply, refreshToken.token);
     return user;
   }
 }

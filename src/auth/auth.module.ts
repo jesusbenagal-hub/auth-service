@@ -5,6 +5,7 @@ import { AuthController } from "./auth.controller.js";
 import { AuthService } from "./auth.service.js";
 import { GoogleTokenVerifier } from "./google-token-verifier.js";
 import { JwksController } from "./jwks.controller.js";
+import { RefreshTokenService } from "./refresh-token.service.js";
 import { SigningKeyService } from "./signing-key.service.js";
 
 @Module({
@@ -14,6 +15,7 @@ import { SigningKeyService } from "./signing-key.service.js";
     AuthService,
     SigningKeyService,
     AccessTokenService,
+    RefreshTokenService,
   ],
 })
 export class AuthModule {}

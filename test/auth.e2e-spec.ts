@@ -14,11 +14,18 @@ import {
   ACCESS_TOKEN_TTL_SECONDS,
   TOKEN_ISSUER,
 } from "../src/auth/access-token.service.js";
-import { ACCESS_TOKEN_COOKIE } from "../src/auth/auth-cookies.js";
+import {
+  ACCESS_TOKEN_COOKIE,
+  REFRESH_TOKEN_COOKIE,
+} from "../src/auth/auth-cookies.js";
 import {
   type GoogleIdentity,
   GoogleTokenVerifier,
 } from "../src/auth/google-token-verifier.js";
+import {
+  hashRefreshToken,
+  REFRESH_TOKEN_TTL_SECONDS,
+} from "../src/auth/refresh-token.service.js";
 import { configureApp } from "../src/configure-app.js";
 import { PrismaService } from "../src/prisma/prisma.service.js";
 
@@ -224,6 +231,41 @@ describe("POST /auth/google (e2e)", () => {
       });
       // The token never travels in the body, where JavaScript could read it.
       expect(response.body).not.toContain(cookie?.value);
+    });
+
+    it("sets the refresh token in an httpOnly cookie for /api/auth", async () => {
+      const response = await signIn("registered");
+
+      const cookie = response.cookies.find(
+        ({ name }) => name === REFRESH_TOKEN_COOKIE,
+      );
+      expect(cookie).toMatchObject({
+        httpOnly: true,
+        secure: true,
+        sameSite: "Strict",
+        path: "/api/auth",
+        maxAge: REFRESH_TOKEN_TTL_SECONDS,
+      });
+    });
+
+    it("stores only a hash of the refresh token", async () => {
+      const response = await signIn("registered");
+      const token =
+        response.cookies.find(({ name }) => name === REFRESH_TOKEN_COOKIE)
+          ?.value ?? "";
+
+      const byToken = await prisma.refreshToken.findUnique({
+        where: { tokenHash: token },
+      });
+      const byHash = await prisma.refreshToken.findUnique({
+        where: { tokenHash: hashRefreshToken(token) },
+        include: { user: true },
+      });
+      expect(byToken).toBeNull();
+      expect(byHash).toMatchObject({
+        revokedAt: null,
+        user: { email: registeredEmail },
+      });
     });
 
     it("signs the access token with our key", async () => {
