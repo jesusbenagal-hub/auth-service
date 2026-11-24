@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
 
 import type { AppRole } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -64,6 +68,22 @@ export class AuthService {
       data: { googleSub: identity.sub, ...profile },
       include: withAppRoles,
     });
+    return toSignedInUser(user);
+  }
+
+  /**
+   * The user as they are now, for a refresh: a role given or taken away
+   * since the login reaches the new access token.
+   */
+  async getSignedInUser(userId: string): Promise<SignedInUser> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: withAppRoles,
+    });
+    // Deleted since the login (their tokens went with them, by cascade).
+    if (!user) {
+      throw new UnauthorizedException("Invalid refresh token");
+    }
     return toSignedInUser(user);
   }
 }

@@ -1,15 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import { UnauthorizedException } from "@nestjs/common";
-import {
-  FastifyAdapter,
-  type NestFastifyApplication,
-} from "@nestjs/platform-fastify";
-import { Test } from "@nestjs/testing";
+import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { AppModule } from "../src/app.module.js";
 import {
   ACCESS_TOKEN_TTL_SECONDS,
   TOKEN_ISSUER,
@@ -18,41 +13,20 @@ import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
 } from "../src/auth/auth-cookies.js";
-import {
-  type GoogleIdentity,
-  GoogleTokenVerifier,
-} from "../src/auth/google-token-verifier.js";
+import type { GoogleIdentity } from "../src/auth/google-token-verifier.js";
 import {
   hashRefreshToken,
   REFRESH_TOKEN_TTL_SECONDS,
 } from "../src/auth/refresh-token.service.js";
-import { configureApp } from "../src/configure-app.js";
 import { PrismaService } from "../src/prisma/prisma.service.js";
-
-async function createApp(
-  googleTokenVerifier?: Pick<GoogleTokenVerifier, "verify">,
-): Promise<NestFastifyApplication> {
-  const builder = Test.createTestingModule({ imports: [AppModule] });
-  if (googleTokenVerifier) {
-    builder.overrideProvider(GoogleTokenVerifier).useValue(googleTokenVerifier);
-  }
-  const moduleRef = await builder.compile();
-
-  const app = moduleRef.createNestApplication<NestFastifyApplication>(
-    new FastifyAdapter(),
-  );
-  await configureApp(app);
-  await app.init();
-  await app.getHttpAdapter().getInstance().ready();
-  return app;
-}
+import { createTestApp } from "./create-test-app.js";
 
 describe("POST /auth/google (e2e)", () => {
   describe("with the real Google verifier", () => {
     let app: NestFastifyApplication;
 
     beforeAll(async () => {
-      app = await createApp();
+      app = await createTestApp();
     });
 
     afterAll(async () => {
@@ -155,7 +129,7 @@ describe("POST /auth/google (e2e)", () => {
     }
 
     beforeAll(async () => {
-      app = await createApp(fakeVerifier);
+      app = await createTestApp(fakeVerifier);
       prisma = app.get(PrismaService);
 
       await prisma.app.create({ data: { id: appId, name: "E2E" } });
