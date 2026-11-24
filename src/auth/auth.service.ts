@@ -72,17 +72,17 @@ export class AuthService {
   }
 
   /**
-   * The user as they are now, for a refresh: a role given or taken away
-   * since the login reaches the new access token.
+   * The user as they are now (for a refresh or /me): a role given or taken
+   * away since the login shows up here.
    */
   async getSignedInUser(userId: string): Promise<SignedInUser> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: withAppRoles,
     });
-    // Deleted since the login (their tokens went with them, by cascade).
+    // Deleted since the login (their refresh tokens went with them).
     if (!user) {
-      throw new UnauthorizedException("Invalid refresh token");
+      throw new UnauthorizedException("User no longer exists");
     }
     return toSignedInUser(user);
   }

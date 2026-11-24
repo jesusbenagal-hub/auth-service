@@ -101,6 +101,21 @@ export default defineConfig(
         { selector: "default", format: ["camelCase"] },
         { selector: "import", format: ["camelCase", "PascalCase"] },
         { selector: "variable", format: ["camelCase", "UPPER_CASE"] },
+        // Decorators made with a factory (`createParamDecorator`) are
+        // exported constants, used like `@CurrentUser()`.
+        {
+          selector: "variable",
+          modifiers: ["const", "exported"],
+          format: ["camelCase", "UPPER_CASE", "PascalCase"],
+        },
+        // A parameter a signature makes us accept but we don't use (`_data`);
+        // TypeScript's noUnusedParameters also skips names that start with _.
+        {
+          selector: "parameter",
+          modifiers: ["unused"],
+          format: ["camelCase"],
+          leadingUnderscore: "require",
+        },
         // Decorators we write (`@AppRole()`) are PascalCase functions.
         { selector: "function", format: ["camelCase", "PascalCase"] },
         { selector: "typeLike", format: ["PascalCase"] },
