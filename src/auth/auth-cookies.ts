@@ -1,8 +1,9 @@
 import type { CookieSerializeOptions } from "@fastify/cookie";
 import type { FastifyReply } from "fastify";
 
-import { ACCESS_TOKEN_TTL_SECONDS } from "./access-token.service.js";
-import { REFRESH_TOKEN_TTL_SECONDS } from "./refresh-token.service.js";
+import { ACCESS_TOKEN_TTL_SECONDS } from "../tokens/access-token.service.js";
+import { REFRESH_TOKEN_TTL_SECONDS } from "../tokens/refresh-token.service.js";
+import type { Session } from "./auth.service.js";
 
 /** The cookie with the access JWT; the hub's proxy turns it into a Bearer header. */
 export const ACCESS_TOKEN_COOKIE = "hub_at";
@@ -34,22 +35,18 @@ const refreshTokenCookieOptions = {
   path: "/api/auth",
 } satisfies CookieSerializeOptions;
 
-/** Sets the access token cookie, which expires when the token does. */
-export function setAccessTokenCookie(
+/**
+ * Sets both cookies of a session. Each one expires when its token does, and
+ * the refresh token only travels to the auth endpoints.
+ */
+export function setAuthCookies(
   reply: FastifyReply,
-  accessToken: string,
+  { accessToken, refreshToken }: Pick<Session, "accessToken" | "refreshToken">,
 ): void {
   reply.setCookie(ACCESS_TOKEN_COOKIE, accessToken, {
     ...accessTokenCookieOptions,
     maxAge: ACCESS_TOKEN_TTL_SECONDS,
   });
-}
-
-/** Sets the refresh token cookie, only for the auth endpoints. */
-export function setRefreshTokenCookie(
-  reply: FastifyReply,
-  refreshToken: string,
-): void {
   reply.setCookie(REFRESH_TOKEN_COOKIE, refreshToken, {
     ...refreshTokenCookieOptions,
     maxAge: REFRESH_TOKEN_TTL_SECONDS,

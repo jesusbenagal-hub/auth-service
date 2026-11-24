@@ -7,9 +7,9 @@ import {
 import type { FastifyRequest } from "fastify";
 import { createLocalJWKSet, jwtVerify } from "jose";
 
-import { TOKEN_ISSUER } from "./access-token.service.js";
-import { type HubUser, toHubUser } from "./hub-user.js";
-import { SigningKeyService } from "./signing-key.service.js";
+import { TOKEN_ISSUER } from "../../tokens/access-token.service.js";
+import { SigningKeyService } from "../../tokens/signing-key.service.js";
+import { type HubUser, toHubUser } from "../types/hub-user.js";
 
 // Teaches TypeScript that a request can carry the user the guard verified.
 declare module "fastify" {

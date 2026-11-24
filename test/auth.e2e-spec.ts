@@ -6,19 +6,19 @@ import { createLocalJWKSet, type JSONWebKeySet, jwtVerify } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  ACCESS_TOKEN_TTL_SECONDS,
-  TOKEN_ISSUER,
-} from "../src/auth/access-token.service.js";
-import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
 } from "../src/auth/auth-cookies.js";
 import type { GoogleIdentity } from "../src/auth/google-token-verifier.js";
+import { PrismaService } from "../src/prisma/prisma.service.js";
+import {
+  ACCESS_TOKEN_TTL_SECONDS,
+  TOKEN_ISSUER,
+} from "../src/tokens/access-token.service.js";
 import {
   hashRefreshToken,
   REFRESH_TOKEN_TTL_SECONDS,
-} from "../src/auth/refresh-token.service.js";
-import { PrismaService } from "../src/prisma/prisma.service.js";
+} from "../src/tokens/refresh-token.service.js";
 import { createTestApp } from "./create-test-app.js";
 
 describe("POST /auth/google (e2e)", () => {

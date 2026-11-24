@@ -4,13 +4,13 @@ import type { NestFastifyApplication } from "@nestjs/platform-fastify";
 import { generateKeyPair, SignJWT } from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { PrismaService } from "../src/prisma/prisma.service.js";
 import {
   AccessTokenService,
   TOKEN_ISSUER,
-} from "../src/auth/access-token.service.js";
-import { AuthService } from "../src/auth/auth.service.js";
-import { SigningKeyService } from "../src/auth/signing-key.service.js";
-import { PrismaService } from "../src/prisma/prisma.service.js";
+} from "../src/tokens/access-token.service.js";
+import { SigningKeyService } from "../src/tokens/signing-key.service.js";
+import { UsersService } from "../src/users/users.service.js";
 import { createTestApp } from "./create-test-app.js";
 
 describe("GET /me (e2e)", () => {
@@ -45,7 +45,7 @@ describe("GET /me (e2e)", () => {
 
   /** A valid access token for the test user, as the login would issue it. */
   async function accessToken(): Promise<string> {
-    const user = await app.get(AuthService).getSignedInUser(userId);
+    const user = await app.get(UsersService).getSignedInUser(userId);
     return app.get(AccessTokenService).issue(user);
   }
 

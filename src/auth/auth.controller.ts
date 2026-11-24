@@ -11,30 +11,26 @@ import {
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { AccessTokenService } from "./access-token.service.js";
+import type { SignedInUser } from "../users/users.service.js";
 import {
   clearAuthCookies,
   REFRESH_TOKEN_COOKIE,
-  setAccessTokenCookie,
-  setRefreshTokenCookie,
+  setAuthCookies,
 } from "./auth-cookies.js";
-import { AuthService, type SignedInUser } from "./auth.service.js";
-import { GoogleTokenVerifier } from "./google-token-verifier.js";
-import { RefreshTokenService } from "./refresh-token.service.js";
+import { AuthService } from "./auth.service.js";
 
 // What Google Identity Services gives the browser: `credential` is the id_token.
 const googleLoginSchema = z.object({ credential: z.string().min(1) });
 
 type GoogleLoginBody = z.infer<typeof googleLoginSchema>;
 
+/**
+ * The HTTP side of the session: what comes in the body and the cookies, and
+ * what goes back in them. The flow itself is AuthService's.
+ */
 @Controller("auth")
 export class AuthController {
-  constructor(
-    private readonly googleTokenVerifier: GoogleTokenVerifier,
-    private readonly authService: AuthService,
-    private readonly accessTokenService: AccessTokenService,
-    private readonly refreshTokenService: RefreshTokenService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   /** Signs in with Google: the tokens go in cookies, the user in the body. */
   @Post("google")
@@ -44,15 +40,9 @@ export class AuthController {
     // passthrough: we only add cookies; Nest still sends what we return.
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<SignedInUser> {
-    const identity = await this.googleTokenVerifier.verify(body.credential);
-    const user = await this.authService.signInWithGoogle(identity);
-
-    const accessToken = await this.accessTokenService.issue(user);
-    const refreshToken = await this.refreshTokenService.issue(user.id);
-
-    setAccessTokenCookie(reply, accessToken);
-    setRefreshTokenCookie(reply, refreshToken.token);
-    return user;
+    const session = await this.authService.loginWithGoogle(body.credential);
+    setAuthCookies(reply, session);
+    return session.user;
   }
 
   /**
@@ -70,13 +60,9 @@ export class AuthController {
       throw new UnauthorizedException("Invalid refresh token");
     }
 
-    const { userId, refreshToken } =
-      await this.refreshTokenService.rotate(token);
-    const user = await this.authService.getSignedInUser(userId);
-
-    setAccessTokenCookie(reply, await this.accessTokenService.issue(user));
-    setRefreshTokenCookie(reply, refreshToken.token);
-    return user;
+    const session = await this.authService.refresh(token);
+    setAuthCookies(reply, session);
+    return session.user;
   }
 
   /**
@@ -91,7 +77,7 @@ export class AuthController {
   ): Promise<void> {
     const token = request.cookies[REFRESH_TOKEN_COOKIE];
     if (token) {
-      await this.refreshTokenService.revoke(token);
+      await this.authService.logout(token);
     }
     clearAuthCookies(reply);
   }

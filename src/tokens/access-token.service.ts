@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { SignJWT } from "jose";
 
-import type { SignedInUser } from "./auth.service.js";
+import type { SignedInUser } from "../users/users.service.js";
 import { SigningKeyService } from "./signing-key.service.js";
 
 /** Who issues our tokens: every API checks `iss` against this value. */

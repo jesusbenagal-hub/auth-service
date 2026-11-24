@@ -8,11 +8,11 @@ import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
 } from "../src/auth/auth-cookies.js";
+import { PrismaService } from "../src/prisma/prisma.service.js";
 import {
   hashRefreshToken,
   RefreshTokenService,
-} from "../src/auth/refresh-token.service.js";
-import { PrismaService } from "../src/prisma/prisma.service.js";
+} from "../src/tokens/refresh-token.service.js";
 import { createTestApp } from "./create-test-app.js";
 
 describe("POST /auth/refresh (e2e)", () => {

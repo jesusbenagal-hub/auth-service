@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { AppRole } from "../generated/prisma/client.js";
+import { AppRole } from "../../generated/prisma/client.js";
 
 /** Who is calling, as the access token says: what a guarded route gets. */
 export interface HubUser {

@@ -6,12 +6,16 @@ import { AuthModule } from "./auth/auth.module.js";
 import { envSchema } from "./config/env.js";
 import { HealthController } from "./health/health.controller.js";
 import { PrismaModule } from "./prisma/prisma.module.js";
+import { TokensModule } from "./tokens/tokens.module.js";
+import { UsersModule } from "./users/users.module.js";
 
 @Module({
   imports: [
     // Reads .env (if there is one) and process.env, validated by envSchema.
     ConfigModule.forRoot({ isGlobal: true, validationSchema: envSchema }),
     PrismaModule,
+    TokensModule,
+    UsersModule,
     AuthModule,
   ],
   controllers: [HealthController],

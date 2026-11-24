@@ -1,38 +1,69 @@
+import { ForbiddenException, Injectable } from "@nestjs/common";
+
+import { AccessTokenService } from "../tokens/access-token.service.js";
+import { RefreshTokenService } from "../tokens/refresh-token.service.js";
+import { type SignedInUser, UsersService } from "../users/users.service.js";
 import {
-  ForbiddenException,
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
+  type GoogleIdentity,
+  GoogleTokenVerifier,
+} from "./google-token-verifier.js";
 
-import type { AppRole } from "../generated/prisma/client.js";
-import { PrismaService } from "../prisma/prisma.service.js";
-import type { GoogleIdentity } from "./google-token-verifier.js";
-
-/** A user of the hub with their role in each app (appId → role). */
-export interface SignedInUser {
-  id: string;
-  email: string;
-  name: string | null;
-  avatarUrl: string | null;
-  isHubAdmin: boolean;
-  apps: Record<string, AppRole>;
+/** A signed-in browser: the user and the two tokens that go in its cookies. */
+export interface Session {
+  user: SignedInUser;
+  accessToken: string;
+  refreshToken: string;
 }
 
-// Prisma `include`: the user's roles come in the same query.
-const withAppRoles = {
-  appRoles: { select: { appId: true, role: true } },
-} as const;
-
+/**
+ * The session flow: logging in with Google, refreshing and logging out.
+ * AuthController only moves its results in and out of the cookies.
+ */
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly googleTokenVerifier: GoogleTokenVerifier,
+    private readonly usersService: UsersService,
+    private readonly accessTokenService: AccessTokenService,
+    private readonly refreshTokenService: RefreshTokenService,
+  ) {}
+
+  /** Verifies the id_token from Google and starts a new session. */
+  async loginWithGoogle(credential: string): Promise<Session> {
+    const identity = await this.googleTokenVerifier.verify(credential);
+    const user = await this.signInWithGoogle(identity);
+
+    const accessToken = await this.accessTokenService.issue(user);
+    const refreshToken = await this.refreshTokenService.issue(user.id);
+    return { user, accessToken, refreshToken: refreshToken.token };
+  }
+
+  /**
+   * Swaps a refresh token for a new pair of tokens. The roles are read
+   * again, so a change since the login reaches the new access token.
+   */
+  async refresh(token: string): Promise<Session> {
+    const { userId, refreshToken } =
+      await this.refreshTokenService.rotate(token);
+    const user = await this.usersService.getSignedInUser(userId);
+
+    const accessToken = await this.accessTokenService.issue(user);
+    return { user, accessToken, refreshToken: refreshToken.token };
+  }
+
+  /** Ends the session the refresh token belongs to. */
+  async logout(token: string): Promise<void> {
+    await this.refreshTokenService.revoke(token);
+  }
 
   /**
    * Signs in someone Google has already verified. Only registered users get
    * in (the hub is private): they are found by their Google `sub` or, on their
    * first login, by email, and that first login links the Google account.
    */
-  async signInWithGoogle(identity: GoogleIdentity): Promise<SignedInUser> {
+  private async signInWithGoogle(
+    identity: GoogleIdentity,
+  ): Promise<SignedInUser> {
     // An unverified email doesn't prove whose it is: never link by it.
     if (!identity.isEmailVerified) {
       throw new ForbiddenException("Email not verified by Google");
@@ -40,22 +71,13 @@ export class AuthService {
 
     const profile = { name: identity.name, avatarUrl: identity.picture };
 
-    const linkedUser = await this.prisma.user.findUnique({
-      where: { googleSub: identity.sub },
-    });
+    const linkedUser = await this.usersService.findByGoogleSub(identity.sub);
     if (linkedUser) {
       // Name and photo may have changed in Google since the last login.
-      const user = await this.prisma.user.update({
-        where: { id: linkedUser.id },
-        data: profile,
-        include: withAppRoles,
-      });
-      return toSignedInUser(user);
+      return this.usersService.updateProfile(linkedUser.id, profile);
     }
 
-    const registeredUser = await this.prisma.user.findUnique({
-      where: { email: identity.email },
-    });
+    const registeredUser = await this.usersService.findByEmail(identity.email);
     // Not registered (`undefined !== null`), or the email belongs to a user
     // already linked to another Google account.
     if (registeredUser?.googleSub !== null) {
@@ -63,47 +85,10 @@ export class AuthService {
     }
 
     // First login: link the Google account to the user registered by email.
-    const user = await this.prisma.user.update({
-      where: { id: registeredUser.id },
-      data: { googleSub: identity.sub, ...profile },
-      include: withAppRoles,
-    });
-    return toSignedInUser(user);
+    return this.usersService.linkGoogleAccount(
+      registeredUser.id,
+      identity.sub,
+      profile,
+    );
   }
-
-  /**
-   * The user as they are now (for a refresh or /me): a role given or taken
-   * away since the login shows up here.
-   */
-  async getSignedInUser(userId: string): Promise<SignedInUser> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: withAppRoles,
-    });
-    // Deleted since the login (their refresh tokens went with them).
-    if (!user) {
-      throw new UnauthorizedException("User no longer exists");
-    }
-    return toSignedInUser(user);
-  }
-}
-
-function toSignedInUser(user: {
-  id: string;
-  email: string;
-  name: string | null;
-  avatarUrl: string | null;
-  hubAdmin: boolean;
-  appRoles: { appId: string; role: AppRole }[];
-}): SignedInUser {
-  return {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    avatarUrl: user.avatarUrl,
-    isHubAdmin: user.hubAdmin,
-    apps: Object.fromEntries(
-      user.appRoles.map(({ appId, role }) => [appId, role]),
-    ),
-  };
 }
